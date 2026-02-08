@@ -45,6 +45,7 @@ class SimpleMailConfig:
     smtp_port: int = 587
     smtp_use_tls: bool = True  # For STARTTLS on 587
     smtp_use_ssl: bool = False  # For SMTP_SSL on 465
+    smtp_verify_ssl: bool = False  # Disable SSL verification for compatibility
     
     # IMAP settings (for receiving replies)
     imap_host: str = ""

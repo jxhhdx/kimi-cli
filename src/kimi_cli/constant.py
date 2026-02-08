@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import importlib.metadata
-
 NAME = "Kimi Code CLI"
-VERSION = importlib.metadata.version("kimi-cli")
+VERSION = "1.9.0+custom"
 USER_AGENT = f"KimiCLI/{VERSION}"

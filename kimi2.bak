@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""
+kimi2 - 简化版 Kimi CLI，支持邮件通知
+
+由于原 kimi-cli 需要 Python 3.12+，此简化版提供核心功能：
+1. 运行简单任务（通过 subprocess 调用官方 kimi）
+2. 任务完成后发送邮件通知
+
+用法:
+    kimi2 --print -y -p "任务描述"
+    kimi2 mail test
+    kimi2 mail send-test
+"""
+
+import sys
+import os
+import subprocess
+import asyncio
+import argparse
+
+# 配置邮件
+EMAIL_CONFIG = {
+    'address': os.environ.get('KIMI_EMAIL_ADDRESS', '1490960584@qq.com'),
+    'password': os.environ.get('KIMI_EMAIL_PASSWORD', 'iemigwydobhjbagh'),
+    'notify': os.environ.get('KIMI_NOTIFY_EMAIL', 'igaoxian@foxmail.com'),
+}
+
+SMTP_CONFIG = {
+    'host': 'smtp.qq.com',
+    'port': 465,
+}
+
+async def send_email(subject, body):
+    """发送邮件"""
+    try:
+        import aiosmtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = EMAIL_CONFIG['address']
+        msg["To"] = EMAIL_CONFIG['notify']
+        
+        full_body = f"""{body}
+
+---
+发送时间: {subprocess.check_output(['date']).decode().strip()}
+Reply to this email to continue.
+"""
+        msg.attach(MIMEText(full_body, "plain", "utf-8"))
+        
+        # QQ 邮箱使用 465 端口 + SSL
+        smtp = aiosmtplib.SMTP(
+            hostname=SMTP_CONFIG['host'],
+            port=SMTP_CONFIG['port'],
+            use_tls=True,
+        )
+        await smtp.connect()
+        await smtp.login(EMAIL_CONFIG['address'], EMAIL_CONFIG['password'])
+        await smtp.send_message(msg)
+        await smtp.quit()
+        
+        print(f"\n📧 邮件通知已发送至: {EMAIL_CONFIG['notify']}")
+        return True
+    except Exception as e:
+        print(f"\n⚠️  邮件发送失败: {e}")
+        return False
+
+def mail_test():
+    """测试邮件配置"""
+    print("邮件配置:")
+    print(f"  发件人: {EMAIL_CONFIG['address']}")
+    print(f"  收件人: {EMAIL_CONFIG['notify']}")
+    print(f"  SMTP: {SMTP_CONFIG['host']}:{SMTP_CONFIG['port']}")
+    
+    if EMAIL_CONFIG['address'] and EMAIL_CONFIG['password']:
+        print("\n✓ 配置有效")
+        return 0
+    else:
+        print("\n✗ 配置无效，请设置环境变量:")
+        print("  export KIMI_EMAIL_ADDRESS='你的邮箱'")
+        print("  export KIMI_EMAIL_PASSWORD='你的密码'")
+        return 1
+
+def mail_send_test():
+    """发送测试邮件"""
+    print("发送测试邮件...")
+    
+    async def _send():
+        await send_email(
+            "kimi2 测试邮件",
+            "这是来自 kimi2 的测试邮件！\n\n如果你收到这封邮件，说明邮件通知功能正常工作。"
+        )
+    
+    asyncio.run(_send())
+    return 0
+
+def run_task(prompt):
+    """运行任务并发送通知"""
+    print(f"运行任务: {prompt}")
+    print("-" * 50)
+    
+    # 调用官方 kimi
+    cmd = ['kimi', '--print', '-y', '-p', prompt]
+    
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300  # 5分钟超时
+        )
+        
+        output = result.stdout
+        errors = result.stderr
+        
+        print(output)
+        if errors:
+            print("错误:", errors, file=sys.stderr)
+        
+        # 发送完成通知
+        success = result.returncode == 0
+        status = "完成" if success else "失败"
+        
+        async def _notify():
+            await send_email(
+                f"kimi2: 任务{status}",
+                f"任务: {prompt}\n\n状态: {'成功' if success else '失败'}\n\n输出:\n{output[:500]}"
+            )
+        
+        asyncio.run(_notify())
+        
+        return result.returncode
+        
+    except subprocess.TimeoutExpired:
+        print("任务超时")
+        asyncio.run(send_email("kimi2: 任务超时", f"任务: {prompt}\n\n执行超时（5分钟）"))
+        return 1
+    except Exception as e:
+        print(f"运行失败: {e}")
+        asyncio.run(send_email("kimi2: 任务失败", f"任务: {prompt}\n\n错误: {e}"))
+        return 1
+
+def main():
+    parser = argparse.ArgumentParser(description='kimi2 - 简化版 Kimi CLI')
+    parser.add_argument('--print', action='store_true', help='Print 模式')
+    parser.add_argument('-y', '--yes', action='store_true', help='自动确认')
+    parser.add_argument('-p', '--prompt', help='任务描述')
+    parser.add_argument('command', nargs='?', help='命令 (mail)')
+    parser.add_argument('subcommand', nargs='?', help='子命令 (test, send-test)')
+    
+    args = parser.parse_args()
+    
+    # 处理 mail 命令
+    if args.command == 'mail':
+        if args.subcommand == 'test':
+            return mail_test()
+        elif args.subcommand == 'send-test':
+            return mail_send_test()
+        else:
+            print("用法: kimi2 mail <test|send-test>")
+            return 1
+    
+    # 处理任务执行
+    if args.prompt:
+        return run_task(args.prompt)
+    
+    # 默认帮助
+    print("kimi2 - 简化版 Kimi CLI (支持邮件通知)")
+    print("")
+    print("用法:")
+    print("  kimi2 --print -y -p '任务描述'    运行任务并邮件通知")
+    print("  kimi2 mail test                    测试邮件配置")
+    print("  kimi2 mail send-test               发送测试邮件")
+    print("")
+    print("环境变量:")
+    print("  KIMI_EMAIL_ADDRESS    发件人邮箱")
+    print("  KIMI_EMAIL_PASSWORD   邮箱密码/授权码")
+    print("  KIMI_NOTIFY_EMAIL     收件人邮箱（可选，默认为发件人）")
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
