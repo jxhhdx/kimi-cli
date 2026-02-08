@@ -4,7 +4,7 @@ import contextvars
 from collections.abc import AsyncGenerator, AsyncIterator, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import PurePath
-from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Literal, Protocol, Union, runtime_checkable
 
 if TYPE_CHECKING:
     from asyncio import StreamReader, StreamWriter
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
         _writer = ssh_writer
 
 
-type StrOrKaosPath = str | KaosPath
+StrOrKaosPath = Union[str, "KaosPath"]
 
 
 @runtime_checkable
