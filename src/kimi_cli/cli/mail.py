@@ -1,405 +1,194 @@
-"""Mail commands for kimi-cli.
+"""Simple mail commands for kimi-cli.
 
-This module provides CLI commands for email processing:
-- mail-server: Run a daemon that monitors email inbox
-- mail-check: One-time check for new emails
+This module provides simple CLI commands for email notification
+and response handling for a single user.
 """
 
 from __future__ import annotations
 
 import asyncio
-import os
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Annotated
 
 import typer
 from loguru import logger
 
 from kimi_cli.mail.client import IMAPClient, IMAPConfig
-from kimi_cli.mail.models import TaskRequest
 from kimi_cli.mail.parser import EmailParser
-from kimi_cli.mail.security import SecurityConfig, SecurityValidator, WhitelistEntry
+from kimi_cli.mail.simple_config import get_simple_config
 
-# Create CLI
 cli = typer.Typer(
     name="mail",
-    help="Email inbound processing commands.",
+    help="Simple email notification and reply handling.",
     no_args_is_help=True,
 )
-
-
-@dataclass
-class MailGlobalConfig:
-    """Global configuration for mail commands."""
-    
-    imap_host: str = "imap.gmail.com"
-    imap_port: int = 993
-    username: str = ""
-    password: str = ""
-    mailbox: str = "INBOX"
-    
-    # Security settings
-    whitelist: list[str] | None = None
-    require_auto_prefix: bool = True
-    sandbox_mode: bool = True
-    
-    # Processing settings
-    working_dir: Path | None = None
-    mark_seen: bool = True
-    
-    @classmethod
-    def from_env(cls) -> MailGlobalConfig:
-        """Load configuration from environment variables."""
-        return cls(
-            imap_host=os.environ.get("KIMI_IMAP_HOST", "imap.gmail.com"),
-            imap_port=int(os.environ.get("KIMI_IMAP_PORT", "993")),
-            username=os.environ.get("KIMI_EMAIL_USERNAME", ""),
-            password=os.environ.get("KIMI_EMAIL_PASSWORD", ""),
-            mailbox=os.environ.get("KIMI_MAILBOX", "INBOX"),
-            whitelist=os.environ.get("KIMI_MAIL_WHITELIST", "").split(",") or None,
-            require_auto_prefix=os.environ.get("KIMI_REQUIRE_AUTO", "true").lower() == "true",
-            sandbox_mode=os.environ.get("KIMI_SANDBOX", "true").lower() == "true",
-            working_dir=Path(os.environ.get("KIMI_MAIL_WORKING_DIR", Path.cwd())),
-            mark_seen=os.environ.get("KIMI_MARK_SEEN", "true").lower() == "true",
-        )
-
-
-def _get_security_config(config: MailGlobalConfig) -> SecurityConfig:
-    """Create security config from global config."""
-    whitelist_entries = []
-    
-    if config.whitelist:
-        for email in config.whitelist:
-            email = email.strip()
-            if email:
-                whitelist_entries.append(WhitelistEntry(
-                    email=email,
-                    dkim_required=False,  # TODO: Add DKIM verification
-                ))
-    
-    return SecurityConfig(
-        enabled=True,
-        whitelist=whitelist_entries,
-        require_auto_prefix=config.require_auto_prefix,
-        sandbox_mode=config.sandbox_mode,
-    )
-
-
-def _get_imap_config(config: MailGlobalConfig) -> IMAPConfig:
-    """Create IMAP config from global config."""
-    return IMAPConfig(
-        host=config.imap_host,
-        port=config.imap_port,
-        username=config.username,
-        password=config.password,
-        mailbox=config.mailbox,
-        mark_seen=config.mark_seen,
-    )
-
-
-async def _process_email(
-    email,
-    validator: SecurityValidator,
-    working_dir: Path,
-    dry_run: bool = False,
-) -> bool:
-    """Process a single email.
-    
-    Args:
-        email: The email to process.
-        validator: Security validator.
-        working_dir: Working directory for tasks.
-        dry_run: If True, don't actually execute tasks.
-        
-    Returns:
-        True if processed successfully.
-    """
-    from rich.console import Console
-    from rich.table import Table
-    
-    console = Console()
-    
-    # Security check
-    if not validator.validate_email(email):
-        console.print(f"[red]✗[/red] Security check failed for email from {email.from_address}")
-        return False
-    
-    # Extract task
-    task = EmailParser.extract_task(email)
-    
-    # Additional task validation
-    is_valid, reason = validator.validate_task(task, email)
-    if not is_valid:
-        console.print(f"[red]✗[/red] Task validation failed: {reason}")
-        return False
-    
-    # Check if confirmation is required
-    needs_confirm, confirm_reason = validator.should_require_confirmation(task)
-    if needs_confirm and not dry_run:
-        console.print(f"[yellow]⚠[/yellow] Task requires confirmation: {confirm_reason}")
-        # TODO: Implement confirmation flow (send email back for confirmation)
-        console.print(f"   Task: {task.to_command()[:60]}...")
-        return False
-    
-    # Display task info
-    table = Table(title=f"Task from {email.from_address}")
-    table.add_column("Field", style="cyan")
-    table.add_column("Value")
-    
-    table.add_row("Type", task.task_type.value)
-    table.add_row("Subject", email.subject[:50])
-    table.add_row("Command", task.to_command()[:50])
-    table.add_row("Attachments", str(len(task.attachments)))
-    table.add_row("Auto-execute", "Yes" if task.auto_execute else "No")
-    
-    console.print(table)
-    
-    if dry_run:
-        console.print("[blue]ℹ[/blue] Dry run mode - task not executed")
-        return True
-    
-    # TODO: Execute the task using kimi
-    # This would involve calling the CLI programmatically or creating a subprocess
-    console.print(f"[green]✓[/green] Task processed (execution not yet implemented)")
-    
-    return True
 
 
 @cli.command(name="check")
 def mail_check(
     dry_run: Annotated[
         bool,
-        typer.Option(
-            "--dry-run",
-            help="Don't actually execute tasks, just show what would be done.",
-        ),
-    ] = False,
-    auto_execute: Annotated[
-        bool,
-        typer.Option(
-            "--auto-execute",
-            help="Automatically execute read-only tasks without confirmation.",
-        ),
-    ] = True,
-    verbose: Annotated[
-        bool,
-        typer.Option(
-            "--verbose", "-v",
-            help="Enable verbose output.",
-        ),
+        typer.Option("--dry-run", help="Don't execute, just show what would be done."),
     ] = False,
 ) -> None:
-    """Check for new emails and process them."""
+    """Check for email replies from your configured address."""
     
     async def _check():
-        # Load configuration
-        config = MailGlobalConfig.from_env()
+        config = get_simple_config()
         
-        # Validate configuration
-        if not config.username or not config.password:
-            typer.echo("Error: Email credentials not configured.", err=True)
-            typer.echo("Set KIMI_EMAIL_USERNAME and KIMI_EMAIL_PASSWORD environment variables.", err=True)
+        if not config.is_configured():
+            typer.echo("Error: Email not configured.", err=True)
+            typer.echo("Set KIMI_EMAIL_ADDRESS and KIMI_EMAIL_PASSWORD", err=True)
             raise typer.Exit(1)
         
-        if verbose:
-            logger.enable("kimi_cli")
+        is_valid, error = config.validate()
+        if not is_valid:
+            typer.echo(f"Error: {error}", err=True)
+            raise typer.Exit(1)
         
-        # Create configs
-        imap_config = _get_imap_config(config)
-        security_config = _get_security_config(config)
-        validator = SecurityValidator(security_config)
+        typer.echo(f"Checking for replies from: {config.email}")
         
-        # Connect and fetch emails
+        # Connect to IMAP
+        imap_config = IMAPConfig(
+            host=config.imap_host,
+            port=config.imap_port,
+            username=config.email,
+            password=config.password,
+            use_ssl=config.imap_use_ssl,
+            mark_seen=True,
+        )
+        
         try:
             async with IMAPClient(imap_config) as client:
-                emails = await client.fetch_unseen(limit=50)
+                emails = await client.fetch_unseen(limit=10)
                 
                 if not emails:
                     typer.echo("No new emails found.")
                     return
                 
-                typer.echo(f"Found {len(emails)} unread email(s)")
+                # Filter: only process emails from self
+                my_emails = [e for e in emails if e.from_address.lower() == config.email.lower()]
                 
-                processed = 0
-                for email in emails:
-                    try:
-                        success = await _process_email(
-                            email,
-                            validator,
-                            config.working_dir or Path.cwd(),
-                            dry_run=dry_run,
-                        )
-                        if success:
-                            processed += 1
-                    except Exception as e:
-                        logger.error(f"Failed to process email: {e}")
-                        if verbose:
-                            raise
+                if not my_emails:
+                    typer.echo(f"Found {len(emails)} email(s), but none from {config.email}")
+                    return
                 
-                typer.echo(f"Processed {processed}/{len(emails)} email(s)")
+                typer.echo(f"Found {len(my_emails)} reply(ies) from you:")
+                
+                for email in my_emails:
+                    typer.echo(f"\n  Subject: {email.subject}")
+                    typer.echo(f"  From: {email.from_address}")
+                    
+                    # Extract task from email
+                    task = EmailParser.extract_task(email)
+                    
+                    if task.attachments:
+                        typer.echo(f"  Attachments: {len(task.attachments)}")
+                        for att in task.attachments:
+                            typer.echo(f"    - {att.filename}")
+                    
+                    if not dry_run:
+                        # TODO: Execute the task
+                        typer.echo(f"  Command: {task.to_command()[:60]}...")
+                        typer.echo("  → Task ready to execute (use --execute to run)")
+                    else:
+                        typer.echo(f"  Would execute: {task.to_command()[:60]}...")
                 
         except Exception as e:
-            logger.error(f"Failed to check emails: {e}")
             typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1)
     
     asyncio.run(_check())
 
 
-@cli.command(name="server")
-def mail_server(
-    interval: Annotated[
-        int,
-        typer.Option(
-            "--interval", "-i",
-            help="Check interval in seconds (for polling mode).",
-        ),
-    ] = 60,
-    once: Annotated[
-        bool,
-        typer.Option(
-            "--once",
-            help="Run once and exit (don't loop).",
-        ),
-    ] = False,
-    dry_run: Annotated[
-        bool,
-        typer.Option(
-            "--dry-run",
-            help="Don't actually execute tasks.",
-        ),
-    ] = False,
-    verbose: Annotated[
-        bool,
-        typer.Option(
-            "--verbose", "-v",
-            help="Enable verbose output.",
-        ),
-    ] = False,
-) -> None:
-    """Run the email server daemon.
-    
-    This command continuously monitors the email inbox for new messages
-    and processes them automatically.
-    """
-    
-    async def _server():
-        # Load configuration
-        config = MailGlobalConfig.from_env()
-        
-        # Validate configuration
-        if not config.username or not config.password:
-            typer.echo("Error: Email credentials not configured.", err=True)
-            typer.echo("Set KIMI_EMAIL_USERNAME and KIMI_EMAIL_PASSWORD environment variables.", err=True)
-            raise typer.Exit(1)
-        
-        if verbose:
-            logger.enable("kimi_cli")
-        
-        # Create configs
-        imap_config = _get_imap_config(config)
-        security_config = _get_security_config(config)
-        validator = SecurityValidator(security_config)
-        
-        typer.echo(f"Starting mail server...")
-        typer.echo(f"  IMAP: {config.imap_host}:{config.imap_port}")
-        typer.echo(f"  Mailbox: {config.mailbox}")
-        typer.echo(f"  Check interval: {interval}s")
-        typer.echo(f"  Press Ctrl+C to stop")
-        
-        try:
-            async with IMAPClient(imap_config) as client:
-                while True:
-                    try:
-                        # Check for new emails
-                        emails = await client.fetch_unseen(limit=10)
-                        
-                        if emails:
-                            typer.echo(f"[{asyncio.get_event_loop().time():.0f}] Found {len(emails)} new email(s)")
-                            
-                            for email in emails:
-                                try:
-                                    await _process_email(
-                                        email,
-                                        validator,
-                                        config.working_dir or Path.cwd(),
-                                        dry_run=dry_run,
-                                    )
-                                except Exception as e:
-                                    logger.error(f"Failed to process email: {e}")
-                        
-                        if once:
-                            break
-                        
-                        # Wait before next check
-                        await asyncio.sleep(interval)
-                        
-                    except Exception as e:
-                        logger.error(f"Error in processing loop: {e}")
-                        if once:
-                            raise
-                        await asyncio.sleep(interval)
-                        
-        except KeyboardInterrupt:
-            typer.echo("\nStopping mail server...")
-        except Exception as e:
-            logger.error(f"Server error: {e}")
-            typer.echo(f"Error: {e}", err=True)
-            raise typer.Exit(1)
-    
-    asyncio.run(_server())
-
-
 @cli.command(name="test")
-def mail_test(
-    verbose: Annotated[
-        bool,
-        typer.Option(
-            "--verbose", "-v",
-            help="Enable verbose output.",
-        ),
-    ] = False,
-) -> None:
+def mail_test() -> None:
     """Test email configuration."""
+    config = get_simple_config()
+    
+    typer.echo("Email Configuration:")
+    typer.echo(f"  Address: {config.email or '(not set)'}")
+    typer.echo(f"  Password: {'(set)' if config.password else '(not set)'}")
+    typer.echo(f"  SMTP: {config.smtp_host}:{config.smtp_port}")
+    typer.echo(f"  IMAP: {config.imap_host}:{config.imap_port}")
+    
+    if not config.is_configured():
+        typer.echo("\n❌ Not configured", err=True)
+        typer.echo("\nSet environment variables:")
+        typer.echo("  export KIMI_EMAIL_ADDRESS='your@gmail.com'")
+        typer.echo("  export KIMI_EMAIL_PASSWORD='your-app-password'")
+        raise typer.Exit(1)
+    
+    # Test connection
+    typer.echo("\nTesting connections...")
     
     async def _test():
-        config = MailGlobalConfig.from_env()
-        
-        if verbose:
-            logger.enable("kimi_cli")
-        
-        # Show configuration
-        typer.echo("Configuration:")
-        typer.echo(f"  IMAP Host: {config.imap_host}")
-        typer.echo(f"  IMAP Port: {config.imap_port}")
-        typer.echo(f"  Username: {config.username or '(not set)'}")
-        typer.echo(f"  Password: {'(set)' if config.password else '(not set)'}")
-        typer.echo(f"  Mailbox: {config.mailbox}")
-        
-        if not config.username or not config.password:
-            typer.echo("\nError: Email credentials not configured.", err=True)
-            raise typer.Exit(1)
-        
-        # Test connection
-        typer.echo("\nTesting IMAP connection...")
-        
+        # Test SMTP
         try:
-            imap_config = _get_imap_config(config)
-            async with IMAPClient(imap_config) as client:
-                typer.echo("✓ Connected successfully")
-                
-                # Check for unread messages
-                emails = await client.fetch_unseen(limit=1)
-                if emails:
-                    typer.echo(f"✓ Found {len(emails)} unread message(s)")
-                else:
-                    typer.echo("ℹ No unread messages")
-                    
+            import aiosmtplib
+            async with aiosmtplib.SMTP(
+                hostname=config.smtp_host,
+                port=config.smtp_port,
+                use_tls=config.smtp_use_tls,
+            ) as smtp:
+                await smtp.login(config.email, config.password)
+                typer.echo("  ✓ SMTP connection OK")
         except Exception as e:
-            typer.echo(f"✗ Connection failed: {e}", err=True)
-            raise typer.Exit(1)
+            typer.echo(f"  ✗ SMTP failed: {e}", err=True)
         
-        typer.echo("\nAll tests passed!")
+        # Test IMAP
+        try:
+            imap_config = IMAPConfig(
+                host=config.imap_host,
+                port=config.imap_port,
+                username=config.email,
+                password=config.password,
+            )
+            async with IMAPClient(imap_config) as client:
+                typer.echo("  ✓ IMAP connection OK")
+        except Exception as e:
+            typer.echo(f"  ✗ IMAP failed: {e}", err=True)
     
     asyncio.run(_test())
+    typer.echo("\n✓ Configuration valid!")
+
+
+@cli.command(name="send-test")
+def mail_send_test(
+    message: Annotated[
+        str,
+        typer.Argument(help="Test message to send."),
+    ] = "Hello from Kimi CLI!",
+) -> None:
+    """Send a test email to yourself."""
+    
+    async def _send():
+        config = get_simple_config()
+        
+        if not config.is_configured():
+            typer.echo("Error: Email not configured", err=True)
+            raise typer.Exit(1)
+        
+        try:
+            import aiosmtplib
+            from email.mime.text import MIMEText
+            
+            msg = MIMEText(message)
+            msg["Subject"] = "Kimi CLI Test Email"
+            msg["From"] = config.email
+            msg["To"] = config.email
+            
+            async with aiosmtplib.SMTP(
+                hostname=config.smtp_host,
+                port=config.smtp_port,
+                use_tls=config.smtp_use_tls,
+            ) as smtp:
+                await smtp.login(config.email, config.password)
+                await smtp.send_message(msg)
+            
+            typer.echo(f"✓ Test email sent to {config.email}")
+            
+        except Exception as e:
+            typer.echo(f"✗ Failed to send: {e}", err=True)
+            raise typer.Exit(1)
+    
+    asyncio.run(_send())

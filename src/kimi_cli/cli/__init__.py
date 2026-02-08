@@ -325,6 +325,10 @@ def kimi(
     # We re-enable stderr redirection after KimiCLI.create() succeeds.
     enable_logging(debug, redirect_stderr=False)
 
+    # Register default hooks (email notification, etc.)
+    from kimi_cli.hooks import register_default_hooks
+    register_default_hooks()
+
     def _emit_fatal_error(message: str) -> None:
         # Prefer writing to the original stderr fd even if we later redirect fd=2.
         # This ensures fatal errors are visible to the user.
