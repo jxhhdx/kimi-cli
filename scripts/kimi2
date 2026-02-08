@@ -1,31 +1,44 @@
-#!/usr/bin/env python3
+#!/bin/bash
 #
 # kimi2 - 魔改版 Kimi CLI 启动脚本
 #
-# 用法: kimi2 [所有 kimi 支持的参数]
+# 使用系统的 miniconda Python，但加载魔改版代码
 #
-# 示例:
-#   kimi2                    # 交互式模式
-#   kimi2 --print -y -p "任务"  # 非交互式
-#   kimi2 mail test          # 测试邮件配置
-#
-
-import sys
-import os
 
 # 魔改版路径
-KIMI_CUSTOM_DIR = "/Users/gaoxiang/Workspace2026/kimi-cli"
+export KIMI_CUSTOM_DIR="/Users/gaoxiang/Workspace2026/kimi-cli"
 
-# 检查路径
-if not os.path.isdir(KIMI_CUSTOM_DIR):
-    print(f"Error: 魔改版 kimi-cli 未找到: {KIMI_CUSTOM_DIR}")
-    sys.exit(1)
+# 使用 miniconda 的 Python
+PYTHON="/Users/gaoxiang/miniconda3/bin/python3"
 
-# 添加魔改版 src 到 Python 路径
-sys.path.insert(0, os.path.join(KIMI_CUSTOM_DIR, "src"))
+# 检查
+if [[ ! -d "$KIMI_CUSTOM_DIR" ]]; then
+    echo "Error: 魔改版未找到: $KIMI_CUSTOM_DIR"
+    exit 1
+fi
 
-# 导入并运行 CLI
-from kimi_cli.cli import cli
+# 设置 Python 路径（包含所有依赖包）
+export PYTHONPATH="$KIMI_CUSTOM_DIR/src:$KIMI_CUSTOM_DIR/packages/kaos/src:$KIMI_CUSTOM_DIR/packages/kosong/src:$KIMI_CUSTOM_DIR/packages/kimi-code/src:$PYTHONPATH"
 
-if __name__ == "__main__":
+# 运行魔改版
+exec "$PYTHON" -c "
+import sys
+sys.path.insert(0, '$KIMI_CUSTOM_DIR/src')
+sys.path.insert(0, '$KIMI_CUSTOM_DIR/packages/kaos/src')
+sys.path.insert(0, '$KIMI_CUSTOM_DIR/packages/kosong/src')
+sys.path.insert(0, '$KIMI_CUSTOM_DIR/packages/kimi-code/src')
+
+# 尝试导入，如果失败则给出友好提示
+try:
+    from kimi_cli.cli import cli
     cli()
+except ModuleNotFoundError as e:
+    print(f'错误: 缺少模块 {e.name}')
+    print('')
+    print('某些功能可能无法使用，但邮件通知功能应该可以工作。')
+    print('')
+    print('如果你需要使用完整的 kimi 功能，请运行:')
+    print('  pip install kaos kosong agent-client-protocol')
+    print('')
+    sys.exit(1)
+" "$@"
