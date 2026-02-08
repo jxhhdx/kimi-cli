@@ -2,8 +2,6 @@
 #
 # kimi2 - 魔改版 Kimi CLI 启动脚本
 #
-# 使用系统的 miniconda Python，但加载魔改版代码
-#
 
 # 魔改版路径
 export KIMI_CUSTOM_DIR="/Users/gaoxiang/Workspace2026/kimi-cli"
@@ -17,28 +15,26 @@ if [[ ! -d "$KIMI_CUSTOM_DIR" ]]; then
     exit 1
 fi
 
-# 设置 Python 路径（包含所有依赖包）
-export PYTHONPATH="$KIMI_CUSTOM_DIR/src:$KIMI_CUSTOM_DIR/packages/kaos/src:$KIMI_CUSTOM_DIR/packages/kosong/src:$KIMI_CUSTOM_DIR/packages/kimi-code/src:$PYTHONPATH"
+# 设置 Python 路径
+export PYTHONPATH="$KIMI_CUSTOM_DIR/src:$KIMI_CUSTOM_DIR/packages:$KIMI_CUSTOM_DIR/packages/kaos/src:$KIMI_CUSTOM_DIR/packages/kosong/src:$KIMI_CUSTOM_DIR/packages/kimi-code/src:$PYTHONPATH"
 
 # 运行魔改版
 exec "$PYTHON" -c "
 import sys
 sys.path.insert(0, '$KIMI_CUSTOM_DIR/src')
+sys.path.insert(0, '$KIMI_CUSTOM_DIR/packages')
 sys.path.insert(0, '$KIMI_CUSTOM_DIR/packages/kaos/src')
 sys.path.insert(0, '$KIMI_CUSTOM_DIR/packages/kosong/src')
 sys.path.insert(0, '$KIMI_CUSTOM_DIR/packages/kimi-code/src')
 
-# 尝试导入，如果失败则给出友好提示
-try:
-    from kimi_cli.cli import cli
-    cli()
-except ModuleNotFoundError as e:
-    print(f'错误: 缺少模块 {e.name}')
-    print('')
-    print('某些功能可能无法使用，但邮件通知功能应该可以工作。')
-    print('')
-    print('如果你需要使用完整的 kimi 功能，请运行:')
-    print('  pip install kaos kosong agent-client-protocol')
-    print('')
-    sys.exit(1)
+# 预加载 mock 模块
+import importlib.util
+spec = importlib.util.spec_from_file_location('keyring', '$KIMI_CUSTOM_DIR/packages/keyring_mock.py')
+keyring = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(keyring)
+sys.modules['keyring'] = keyring
+
+# 运行 CLI
+from kimi_cli.cli import cli
+cli()
 " "$@"
