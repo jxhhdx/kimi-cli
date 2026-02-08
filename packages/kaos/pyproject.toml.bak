@@ -3,7 +3,7 @@ name = "pykaos"
 version = "0.7.0"
 description = ""
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "aiofiles>=24.0,<26.0",
     "asyncssh==2.21.1",

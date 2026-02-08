@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+#
+# kimi2-mail - 仅邮件功能的 kimi2 简化版
+# 用于快速测试邮件通知功能
+#
+
+import sys
+import os
+
+# 添加路径
+sys.path.insert(0, '/Users/gaoxiang/Workspace2026/kimi-cli/src')
+sys.path.insert(0, '/Users/gaoxiang/Workspace2026/kimi-cli/packages/kaos/src')
+sys.path.insert(0, '/Users/gaoxiang/Workspace2026/kimi-cli/packages/kosong/src')
+
+# 配置
+os.environ.setdefault('KIMI_EMAIL_ADDRESS', '1490960584@qq.com')
+os.environ.setdefault('KIMI_EMAIL_PASSWORD', 'iemigwydobhjbagh')
+os.environ.setdefault('KIMI_NOTIFY_EMAIL', 'igaoxian@foxmail.com')
+
+def test_mail():
+    """测试邮件配置"""
+    from kimi_cli.mail.simple_config import get_simple_config
+    
+    config = get_simple_config()
+    print("邮件配置:")
+    print(f"  发件人: {config.email}")
+    print(f"  收件人: {config.notify_email}")
+    print(f"  SMTP: {config.smtp_host}:{config.smtp_port}")
+    print(f"  IMAP: {config.imap_host}:{config.imap_port}")
+    
+    if config.is_configured():
+        print("\n✓ 配置有效")
+    else:
+        print("\n✗ 配置无效")
+
+def send_test():
+    """发送测试邮件"""
+    import asyncio
+    from email.mime.text import MIMEText
+    import aiosmtplib
+    from kimi_cli.mail.simple_config import get_simple_config
+    
+    config = get_simple_config()
+    
+    async def _send():
+        msg = MIMEText("这是来自 kimi2 的测试邮件！\n\n如果你收到这封邮件，说明邮件通知功能正常工作。")
+        msg["Subject"] = "kimi2 测试邮件"
+        msg["From"] = config.email
+        msg["To"] = config.notify_email
+        
+        if config.smtp_port == 465:
+            smtp = aiosmtplib.SMTP(hostname=config.smtp_host, port=config.smtp_port, use_tls=True)
+            await smtp.connect()
+        else:
+            smtp = aiosmtplib.SMTP(hostname=config.smtp_host, port=config.smtp_port, use_tls=False)
+            await smtp.connect()
+            await smtp.starttls()
+        
+        await smtp.login(config.email, config.password)
+        await smtp.send_message(msg)
+        await smtp.quit()
+        
+        print(f"✓ 测试邮件已发送到: {config.notify_email}")
+    
+    asyncio.run(_send())
+
+def notify_task(task_description="任务完成", success=True):
+    """发送任务完成通知"""
+    import asyncio
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    import aiosmtplib
+    from kimi_cli.mail.simple_config import get_simple_config
+    
+    config = get_simple_config()
+    
+    async def _send():
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"kimi2: 任务{'完成' if success else '失败'}"
+        msg["From"] = config.email
+        msg["To"] = config.notify_email
+        
+        text = f"""
+Kimi 任务{'完成' if success else '失败'}
+
+任务描述: {task_description}
+状态: {'✓ 成功' if success else '✗ 失败'}
+时间: {os.popen('date').read().strip()}
+
+---
+Reply to this email to continue.
+"""
+        msg.attach(MIMEText(text, "plain", "utf-8"))
+        
+        if config.smtp_port == 465:
+            smtp = aiosmtplib.SMTP(hostname=config.smtp_host, port=config.smtp_port, use_tls=True)
+            await smtp.connect()
+        else:
+            smtp = aiosmtplib.SMTP(hostname=config.smtp_host, port=config.smtp_port, use_tls=False)
+            await smtp.connect()
+            await smtp.starttls()
+        
+        await smtp.login(config.email, config.password)
+        await smtp.send_message(msg)
+        await smtp.quit()
+        
+        print(f"✓ 通知邮件已发送到: {config.notify_email}")
+    
+    asyncio.run(_send())
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("用法: kimi2-mail <command>")
+        print("")
+        print("命令:")
+        print("  test       测试邮件配置")
+        print("  send-test  发送测试邮件")
+        print("  notify     发送任务通知")
+        sys.exit(1)
+    
+    cmd = sys.argv[1]
+    
+    if cmd == "test":
+        test_mail()
+    elif cmd == "send-test":
+        send_test()
+    elif cmd == "notify":
+        task = sys.argv[2] if len(sys.argv) > 2 else "任务完成"
+        notify_task(task)
+    else:
+        print(f"未知命令: {cmd}")
+        sys.exit(1)
