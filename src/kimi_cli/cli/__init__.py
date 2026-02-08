@@ -11,6 +11,7 @@ import typer
 from kimi_cli.constant import VERSION
 
 from .info import cli as info_cli
+from .mail import cli as mail_cli
 from .mcp import cli as mcp_cli
 from .web import cli as web_cli
 
@@ -525,7 +526,38 @@ def kimi(
 
         return session, succeeded
 
-    async def _post_run(last_session: Session, succeeded: bool) -> None:
+    async def _post_run(
+        last_session: Session, succeeded: bool, duration: float = 0.0
+    ) -> None:
+        # NEW: Trigger task completion hooks
+        from kimi_cli.hooks import TaskContext, get_hook_manager
+        
+        # Generate result summary from session
+        result_summary = _generate_result_summary(last_session, succeeded)
+        
+        # Create task context and trigger hooks
+        hook_context = TaskContext(
+            session=last_session,
+            success=succeeded,
+            duration=duration,
+            result_summary=result_summary,
+            metadata={
+                "work_dir": str(last_session.work_dir),
+                "model": getattr(last_session, "model_name", "unknown"),
+            },
+        )
+        
+        # Trigger hooks asynchronously (don't block)
+        try:
+            hook_manager = get_hook_manager()
+            # Run hooks in background without awaiting
+            asyncio.create_task(
+                hook_manager.trigger_all(hook_context, parallel=True, fail_silent=True)
+            )
+        except Exception as e:
+            # Hooks should never affect main flow
+            logger.debug(f"Failed to trigger hooks: {e}")
+        
         if not succeeded:
             return
 
@@ -554,11 +586,45 @@ def kimi(
 
         save_metadata(metadata)
 
+    def _generate_result_summary(session: Session, succeeded: bool) -> str:
+        """Generate a brief summary of the session for notifications."""
+        try:
+            # Count file operations from session context
+            file_ops = []
+            
+            # Try to get information from session history
+            if hasattr(session, "history") and session.history:
+                # Count different types of operations
+                read_count = sum(1 for h in session.history if "read" in str(h).lower())
+                write_count = sum(1 for h in session.history if "write" in str(h).lower())
+                shell_count = sum(1 for h in session.history if "shell" in str(h).lower())
+                
+                if read_count:
+                    file_ops.append(f"{read_count} files read")
+                if write_count:
+                    file_ops.append(f"{write_count} files modified")
+                if shell_count:
+                    file_ops.append(f"{shell_count} shell commands")
+            
+            if file_ops:
+                ops_str = ", ".join(file_ops)
+                status = "completed successfully" if succeeded else "failed"
+                return f"Task {status}. Operations: {ops_str}."
+            else:
+                status = "completed successfully" if succeeded else "failed"
+                return f"Task {status}. Session: {session.id[:8]}..."
+        except Exception:
+            # Fallback summary
+            return f"Task {'completed' if succeeded else 'failed'}."
+
     async def _reload_loop(session_id: str | None) -> bool:
         """
         Returns:
             True if should switch to web interface, False otherwise.
         """
+        import time
+        start_time = time.time()
+        
         while True:
             try:
                 last_session, succeeded = await _run(session_id)
@@ -570,9 +636,12 @@ def kimi(
                 if e.session_id is not None:
                     session = await Session.find(work_dir, e.session_id)
                     if session is not None:
-                        await _post_run(session, True)
+                        duration = time.time() - start_time
+                        await _post_run(session, True, duration)
                 return True
-        await _post_run(last_session, succeeded)
+        
+        duration = time.time() - start_time
+        await _post_run(last_session, succeeded, duration)
         return False
 
     try:
@@ -607,6 +676,7 @@ def kimi(
 
 
 cli.add_typer(info_cli, name="info")
+cli.add_typer(mail_cli, name="mail")
 
 
 @cli.command()

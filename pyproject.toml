@@ -1,6 +1,6 @@
 [project]
 name = "kimi-cli"
-version = "1.9.0"
+version = "1.9.0-custom"
 description = "Kimi Code CLI is your next CLI agent."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -35,6 +35,10 @@ dependencies = [
     "scalar-fastapi>=1.5.0",
     "websockets>=14.0",
     "keyring>=25.7.0",
+    # Custom additions for notification and email features
+    "aiosmtplib>=3.0.0",       # Async SMTP client
+    "aioimaplib>=1.1.0",       # Async IMAP client
+    "email-validator>=2.0.0",  # Email validation
 ]
 
 [dependency-groups]

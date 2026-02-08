@@ -1,0 +1,80 @@
+# Docker Compose configuration for testing email functionality
+#
+# Usage:
+#   docker-compose -f scripts/docker/docker-compose.test.yml up -d
+#   docker-compose -f scripts/docker/docker-compose.test.yml down
+#
+# Services:
+#   - GreenMail: IMAP (3143), SMTP (3025), POP3 (3110)
+#   - Roundcube: Web mail client (8080)
+#
+# Test Accounts:
+#   test@localhost / test
+#   kimi@localhost / kimi
+
+version: '3.8'
+
+services:
+  # GreenMail - Test mail server with IMAP, SMTP, POP3 support
+  greenmail:
+    image: greenmail/standalone:2.0.0
+    container_name: kimi-cli-greenmail
+    hostname: greenmail
+    ports:
+      - "3025:3025"   # SMTP (plain)
+      - "3465:3465"   # SMTPS (SSL)
+      - "3110:3110"   # POP3 (plain)
+      - "3995:3995"   # POP3S (SSL)
+      - "3143:3143"   # IMAP (plain)
+      - "3993:3993"   # IMAPS (SSL)
+    environment:
+      GREENMAIL_OPTS: >
+        -Dgreenmail.setup.test.all
+        -Dgreenmail.users=test:test@localhost,kimi:kimi@localhost,admin:admin@localhost
+        -Dgreenmail.auth.disabled=false
+        -Dgreenmail.verbose
+    volumes:
+      - greenmail-data:/home/greenmail
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "3143"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - kimi-cli-test
+
+  # Optional: Roundcube webmail client for manual testing
+  roundcube:
+    image: roundcube/roundcubemail:latest
+    container_name: kimi-cli-roundcube
+    ports:
+      - "8080:80"
+    environment:
+      ROUNDCUBEMAIL_DEFAULT_HOST: greenmail
+      ROUNDCUBEMAIL_DEFAULT_PORT: 3143
+      ROUNDCUBEMAIL_SMTP_SERVER: greenmail
+      ROUNDCUBEMAIL_SMTP_PORT: 3025
+      ROUNDCUBEMAIL_PLUGINS: archive,zipdownload
+    depends_on:
+      greenmail:
+        condition: service_healthy
+    networks:
+      - kimi-cli-test
+
+  # Optional: MailHog for SMTP-only testing (alternative to GreenMail)
+  # Uncomment if you prefer MailHog's web UI
+  # mailhog:
+  #   image: mailhog/mailhog:latest
+  #   container_name: kimi-cli-mailhog
+  #   ports:
+  #     - "1025:1025"   # SMTP
+  #     - "8025:8025"   # Web UI
+  #   networks:
+  #     - kimi-cli-test
+
+volumes:
+  greenmail-data:
+
+networks:
+  kimi-cli-test:
+    driver: bridge
