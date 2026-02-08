@@ -107,13 +107,28 @@ class SimpleEmailHook(TaskCompletionHook):
             # Send via SMTP
             logger.debug(f"Sending email to {self.config.email}")
             
-            async with aiosmtplib.SMTP(
-                hostname=self.config.smtp_host,
-                port=self.config.smtp_port,
-                use_tls=self.config.smtp_use_tls,
-            ) as smtp:
-                await smtp.login(self.config.email, self.config.password)
-                await smtp.send_message(msg)
+            # Use direct TLS for port 465 (QQ), STARTTLS for port 587 (Gmail)
+            if self.config.smtp_port == 465:
+                # Port 465 - Direct TLS (QQ, 163)
+                smtp = aiosmtplib.SMTP(
+                    hostname=self.config.smtp_host,
+                    port=self.config.smtp_port,
+                    use_tls=True,
+                )
+                await smtp.connect()
+            else:
+                # Port 587 - STARTTLS (Gmail, Outlook)
+                smtp = aiosmtplib.SMTP(
+                    hostname=self.config.smtp_host,
+                    port=self.config.smtp_port,
+                    use_tls=False,
+                )
+                await smtp.connect()
+                await smtp.starttls()
+            
+            await smtp.login(self.config.email, self.config.password)
+            await smtp.send_message(msg)
+            await smtp.quit()
             
             logger.info(f"Notification sent to {self.config.email}")
             return HookResult(success=True)

@@ -125,13 +125,29 @@ def mail_test() -> None:
         # Test SMTP
         try:
             import aiosmtplib
-            async with aiosmtplib.SMTP(
-                hostname=config.smtp_host,
-                port=config.smtp_port,
-                use_tls=config.smtp_use_tls,
-            ) as smtp:
-                await smtp.login(config.email, config.password)
-                typer.echo("  ✓ SMTP connection OK")
+            
+            # Connect based on port
+            if config.smtp_port == 465:
+                # Direct TLS
+                smtp = aiosmtplib.SMTP(
+                    hostname=config.smtp_host,
+                    port=config.smtp_port,
+                    use_tls=True,
+                )
+                await smtp.connect()
+            else:
+                # STARTTLS
+                smtp = aiosmtplib.SMTP(
+                    hostname=config.smtp_host,
+                    port=config.smtp_port,
+                    use_tls=False,
+                )
+                await smtp.connect()
+                await smtp.starttls()
+            
+            await smtp.login(config.email, config.password)
+            await smtp.quit()
+            typer.echo("  ✓ SMTP connection OK")
         except Exception as e:
             typer.echo(f"  ✗ SMTP failed: {e}", err=True)
         
@@ -177,13 +193,26 @@ def mail_send_test(
             msg["From"] = config.email
             msg["To"] = config.email
             
-            async with aiosmtplib.SMTP(
-                hostname=config.smtp_host,
-                port=config.smtp_port,
-                use_tls=config.smtp_use_tls,
-            ) as smtp:
-                await smtp.login(config.email, config.password)
-                await smtp.send_message(msg)
+            # Connect based on port
+            if config.smtp_port == 465:
+                smtp = aiosmtplib.SMTP(
+                    hostname=config.smtp_host,
+                    port=config.smtp_port,
+                    use_tls=True,
+                )
+                await smtp.connect()
+            else:
+                smtp = aiosmtplib.SMTP(
+                    hostname=config.smtp_host,
+                    port=config.smtp_port,
+                    use_tls=False,
+                )
+                await smtp.connect()
+                await smtp.starttls()
+            
+            await smtp.login(config.email, config.password)
+            await smtp.send_message(msg)
+            await smtp.quit()
             
             typer.echo(f"✓ Test email sent to {config.email}")
             

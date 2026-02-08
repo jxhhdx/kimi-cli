@@ -38,7 +38,8 @@ class SimpleMailConfig:
     # SMTP settings (for sending notifications)
     smtp_host: str = ""
     smtp_port: int = 587
-    smtp_use_tls: bool = True
+    smtp_use_tls: bool = True  # For STARTTLS on 587
+    smtp_use_ssl: bool = False  # For SMTP_SSL on 465
     
     # IMAP settings (for receiving replies)
     imap_host: str = ""
@@ -68,12 +69,15 @@ class SimpleMailConfig:
             "gmail.com": {
                 "smtp_host": "smtp.gmail.com",
                 "smtp_port": 587,
+                "smtp_use_tls": True,
                 "imap_host": "imap.gmail.com",
                 "imap_port": 993,
             },
             "qq.com": {
                 "smtp_host": "smtp.qq.com",
-                "smtp_port": 587,
+                "smtp_port": 465,  # QQ uses SSL on 465
+                "smtp_use_tls": False,
+                "smtp_use_ssl": True,  # Use SMTP_SSL
                 "imap_host": "imap.qq.com",
                 "imap_port": 993,
             },
