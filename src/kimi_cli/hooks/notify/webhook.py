@@ -72,23 +72,7 @@ class WebhookConfig:
 
 
 class WebhookHook(TaskCompletionHook):
-    """Hook that sends HTTP webhook notifications.
-    
-    Example configuration for Slack:
-        ```toml
-        [[hooks.task_completion.channels]]
-        type = "webhook"
-        name = "slack-notify"
-        enabled = true
-        url = "https://hooks.slack.com/services/xxx/yyy/zzz"
-        headers = { "Content-Type" = "application/json" }
-        payload_template = """
-        {
-          "text": "Kimi task {{ 'completed' if success else 'failed' }} in {{ '%.0f'|format(duration) }}s"
-        }
-        """
-        ```
-    """
+    """Hook that sends HTTP webhook notifications."""
     
     def __init__(self, config: HookConfig) -> None:
         """Initialize the webhook hook.

@@ -25,7 +25,7 @@ Kimi Task {{ "✓ Completed" if success else "✗ Failed" }}
 ✓ Task completed successfully in {{ "%.1f" | format(duration) }} seconds
 {% else %}
 ✗ Task failed after {{ "%.1f" | format(duration) }} seconds
-{% endif %n
+{% endif %}
 Working Directory: {{ work_dir }}
 Session: {{ session_id[:8] }}
 
