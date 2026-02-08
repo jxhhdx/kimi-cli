@@ -2,7 +2,26 @@
 
 ## 🚀 快速开始
 
-### 1. 安装 kimi2 命令
+### 方式一：远程安装（推荐）
+
+在任意机器上运行：
+
+```bash
+# 使用 curl
+curl -fsSL https://raw.githubusercontent.com/jxhhdx/kimi-cli/custom/main/scripts/install-remote.sh | bash
+
+# 或使用 wget
+wget -qO- https://raw.githubusercontent.com/jxhhdx/kimi-cli/custom/main/scripts/install-remote.sh | bash
+```
+
+然后配置环境变量：
+```bash
+export KIMI_EMAIL_ADDRESS="your-email@qq.com"
+export KIMI_EMAIL_PASSWORD="your-auth-code"
+export KIMI_NOTIFY_EMAIL="receiver@example.com"
+```
+
+### 方式二：本地安装
 
 ```bash
 cd /Users/gaoxiang/Workspace2026/kimi-cli
