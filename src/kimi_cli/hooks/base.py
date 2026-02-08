@@ -30,12 +30,14 @@ class TaskContext:
         success: Whether the task completed successfully.
         duration: The duration of the task execution in seconds.
         result_summary: A brief summary of what was done.
+        user_input: The user's input that triggered this task.
         metadata: Additional metadata about the task execution.
     """
     session: "Session"
     success: bool
     duration: float
     result_summary: str
+    user_input: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

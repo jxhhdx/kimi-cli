@@ -31,6 +31,75 @@ from kimi_cli.utils.subprocess_env import get_clean_env
 from kimi_cli.utils.term import ensure_new_line, ensure_tty_sane
 from kimi_cli.wire.types import ContentPart, StatusUpdate
 
+# Global set to track background hook tasks
+_background_hook_tasks: set[asyncio.Task[Any]] = set()
+
+
+def _trigger_hooks_after_turn(soul, succeeded: bool, duration: float, user_input: str = "") -> None:
+    """Trigger task completion hooks after each turn."""
+    try:
+        import asyncio
+        from kimi_cli.hooks import TaskContext, get_hook_manager
+        from kimi_cli.mail.simple_config import get_simple_config
+        
+        # Only trigger if email is configured
+        config = get_simple_config()
+        if not config.is_configured():
+            return
+            
+        hook_manager = get_hook_manager()
+        
+        # Generate result summary
+        result_summary = "Task completed"
+        if hasattr(soul, 'context') and hasattr(soul.context, 'history'):
+            history = soul.context.history
+            if history:
+                # Simple summary from last turn
+                result_summary = f"Completed turn with {len(history)} messages"
+        
+        # Get session from soul
+        session = getattr(soul, 'session', None)
+        work_dir = str(session.work_dir) if session else getattr(soul, 'work_dir', 'unknown')
+        session_id = session.id if session else 'unknown'
+        
+        # Format user input for display
+        if isinstance(user_input, list):
+            # Handle list of ContentPart
+            user_input_str = " ".join(str(item) for item in user_input)
+        else:
+            user_input_str = str(user_input) if user_input else ""
+        
+        hook_context = TaskContext(
+            session=session,
+            success=succeeded,
+            duration=duration,
+            result_summary=result_summary,
+            user_input=user_input_str,
+            metadata={
+                "work_dir": work_dir,
+                "model": getattr(soul, 'model_name', 'unknown'),
+                "session_id": session_id,
+                "user_input": user_input_str,
+            },
+        )
+        
+        # Run hooks in background without blocking
+        try:
+            loop = asyncio.get_running_loop()
+            # Create task but don't await it (run in background)
+            task = loop.create_task(
+                hook_manager.trigger_all(hook_context, parallel=True, fail_silent=True)
+            )
+            # Keep reference to prevent garbage collection
+            _background_hook_tasks.add(task)
+            task.add_done_callback(_background_hook_tasks.discard)
+        except RuntimeError:
+            # No event loop running, skip hooks
+            pass
+    except Exception:
+        # Hooks should never affect main flow
+        pass
+
 
 class Shell:
     def __init__(self, soul: Soul, welcome_info: list[WelcomeInfoItem] | None = None):
@@ -218,6 +287,10 @@ class Shell:
         Returns:
             bool: Whether the run is successful.
         """
+        import time
+        start_time = time.time()
+        hook_triggered = False
+        
         logger.info("Running soul with user input: {user_input}", user_input=user_input)
 
         cancel_event = asyncio.Event()
@@ -241,6 +314,9 @@ class Shell:
                 cancel_event,
                 self.soul.wire_file if isinstance(self.soul, KimiSoul) else None,
             )
+            duration = time.time() - start_time
+            _trigger_hooks_after_turn(self.soul, True, duration, user_input)
+            hook_triggered = True
             return True
         except LLMNotSet:
             logger.exception("LLM not set:")
@@ -271,6 +347,10 @@ class Shell:
             raise  # re-raise unknown error
         finally:
             remove_sigint()
+            # Trigger hooks for failed runs (if not already triggered in success case)
+            if not hook_triggered:
+                duration = time.time() - start_time
+                _trigger_hooks_after_turn(self.soul, False, duration, user_input)
         return False
 
     async def _auto_update(self) -> None:
@@ -326,7 +406,7 @@ class WelcomeInfoItem:
 
 
 def _print_welcome_info(name: str, info_items: list[WelcomeInfoItem]) -> None:
-    head = Text.from_markup("Welcome to Kimi Code CLI!")
+    head = Text.from_markup("Welcome to Kimi2 Code CLI!")
     help_text = Text.from_markup("[grey50]Send /help for help information.[/grey50]")
 
     # Use Table for precise width control

@@ -29,6 +29,11 @@ Kimi Task {{ "✓ Completed" if success else "✗ Failed" }}
 Working Directory: {{ work_dir }}
 Session: {{ session_id[:8] }}
 
+{% if user_input %}
+Your Input:
+> {{ user_input[:500] }}{% if user_input | length > 500 %}...{% endif %}
+
+{% endif %}
 {{ result_summary }}
 
 ---
@@ -85,11 +90,15 @@ class SimpleEmailHook(TaskCompletionHook):
                 return HookResult(success=False, error=error)
             
             # Build message
+            session_id = context.session.id if context.session else "unknown"
+            work_dir = str(context.session.work_dir) if context.session else context.metadata.get("work_dir", "unknown")
+            user_input = context.user_input or context.metadata.get("user_input", "")
             template_data = {
                 "success": context.success,
                 "duration": context.duration,
-                "work_dir": str(context.session.work_dir),
-                "session_id": context.session.id,
+                "work_dir": work_dir,
+                "session_id": session_id,
+                "user_input": user_input,
                 "result_summary": context.result_summary,
             }
             

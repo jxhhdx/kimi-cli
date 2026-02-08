@@ -459,12 +459,12 @@ def kimi(
 
     work_dir = KaosPath.unsafe_from_local_path(local_work_dir) if local_work_dir else KaosPath.cwd()
 
-    async def _run(session_id: str | None) -> tuple[Session, bool]:
+    async def _run(session_id: str | None) -> tuple[Session, bool, str]:
         """
         Create/load session and run the CLI instance.
 
         Returns:
-            The session and whether the run succeeded.
+            The session, whether the run succeeded, and the user input.
         """
         if session_id is not None:
             session = await Session.find(work_dir, session_id)
@@ -528,10 +528,12 @@ def kimi(
                 raise Reload(session_id=session.id) from e
             raise
 
-        return session, succeeded
+        # Get user input for notifications
+        user_input = prompt if prompt else ""
+        return session, succeeded, user_input
 
     async def _post_run(
-        last_session: Session, succeeded: bool, duration: float = 0.0
+        last_session: Session, succeeded: bool, duration: float = 0.0, user_input: str = ""
     ) -> None:
         # NEW: Trigger task completion hooks
         from kimi_cli.hooks import TaskContext, get_hook_manager
@@ -545,17 +547,20 @@ def kimi(
             success=succeeded,
             duration=duration,
             result_summary=result_summary,
+            user_input=user_input,
             metadata={
                 "work_dir": str(last_session.work_dir),
                 "model": getattr(last_session, "model_name", "unknown"),
+                "user_input": user_input,
             },
         )
         
         # Trigger hooks asynchronously (don't block)
+        hook_task = None
         try:
             hook_manager = get_hook_manager()
-            # Run hooks in background without awaiting
-            asyncio.create_task(
+            # Run hooks in background and keep reference
+            hook_task = asyncio.create_task(
                 hook_manager.trigger_all(hook_context, parallel=True, fail_silent=True)
             )
         except Exception as e:
@@ -589,6 +594,15 @@ def kimi(
             work_dir_meta.last_session_id = last_session.id
 
         save_metadata(metadata)
+        
+        # Wait for hooks to complete (with timeout)
+        if hook_task is not None:
+            try:
+                await asyncio.wait_for(hook_task, timeout=10.0)
+            except asyncio.TimeoutError:
+                logger.debug("Hook execution timed out")
+            except Exception as e:
+                logger.debug(f"Hook execution failed: {e}")
 
     def _generate_result_summary(session: Session, succeeded: bool) -> str:
         """Generate a brief summary of the session for notifications."""
@@ -629,9 +643,10 @@ def kimi(
         import time
         start_time = time.time()
         
+        last_user_input = ""
         while True:
             try:
-                last_session, succeeded = await _run(session_id)
+                last_session, succeeded, last_user_input = await _run(session_id)
                 break
             except Reload as e:
                 session_id = e.session_id
@@ -641,11 +656,11 @@ def kimi(
                     session = await Session.find(work_dir, e.session_id)
                     if session is not None:
                         duration = time.time() - start_time
-                        await _post_run(session, True, duration)
+                        await _post_run(session, True, duration, last_user_input)
                 return True
         
         duration = time.time() - start_time
-        await _post_run(last_session, succeeded, duration)
+        await _post_run(last_session, succeeded, duration, last_user_input)
         return False
 
     try:
