@@ -99,13 +99,13 @@ class SimpleEmailHook(TaskCompletionHook):
             msg = MIMEMultipart("alternative")
             msg["Subject"] = f"Kimi: Task {'Completed' if context.success else 'Failed'}"
             msg["From"] = self.config.email
-            msg["To"] = self.config.email  # Send to self
-            msg["Reply-To"] = self.config.email
+            msg["To"] = self.config.notify_email  # Send to notify_email
+            msg["Reply-To"] = self.config.email  # Reply to sender
             
             msg.attach(MIMEText(text_content, "plain", "utf-8"))
             
             # Send via SMTP
-            logger.debug(f"Sending email to {self.config.email}")
+            logger.debug(f"Sending email to {self.config.notify_email}")
             
             # Use direct TLS for port 465 (QQ), STARTTLS for port 587 (Gmail)
             if self.config.smtp_port == 465:

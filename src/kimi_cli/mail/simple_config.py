@@ -22,18 +22,23 @@ class SimpleMailConfig:
         # Via environment variables
         export KIMI_EMAIL_ADDRESS="your@gmail.com"
         export KIMI_EMAIL_PASSWORD="your-app-password"
+        export KIMI_NOTIFY_EMAIL="receiver@example.com"  # optional
         
         # Or create directly
         config = SimpleMailConfig(
             email="your@gmail.com",
-            password="your-password"
+            password="your-password",
+            notify_email="receiver@example.com"
         )
         ```
     """
     
-    # User's email address (for both sending and receiving)
+    # User's email address (for sending and login)
     email: str = ""
     password: str = ""
+    
+    # Notification recipient (defaults to sender email if not set)
+    notify_email: str = ""
     
     # SMTP settings (for sending notifications)
     smtp_host: str = ""
@@ -56,6 +61,12 @@ class SimpleMailConfig:
             self.email = os.environ.get("KIMI_EMAIL_ADDRESS", "")
         if not self.password:
             self.password = os.environ.get("KIMI_EMAIL_PASSWORD", "")
+        if not self.notify_email:
+            self.notify_email = os.environ.get("KIMI_NOTIFY_EMAIL", "")
+        
+        # Default notify_email to sender email if not set
+        if self.email and not self.notify_email:
+            self.notify_email = self.email
         
         # Auto-detect SMTP/IMAP settings based on email domain
         if self.email and not self.smtp_host:
