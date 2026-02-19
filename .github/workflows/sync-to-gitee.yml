@@ -43,7 +43,7 @@ jobs:
           
           # 获取所有分支
           echo "📥 获取所有分支..."
-          git fetch origin --all 2>&1
+          git fetch origin 2>&1
           
           # 推送所有分支到 Gitee
           echo "🚀 正在同步分支到 Gitee..."
