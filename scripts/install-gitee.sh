@@ -1,10 +1,10 @@
 #!/bin/bash
 # Kimi2 Code CLI 安装脚本 (Gitee 版本 - 国内访问更快)
-# 用法: curl -fsSL https://gitee.com/YOUR_USERNAME/kimi-cli/raw/custom/main/scripts/install-gitee.sh | bash
+# 用法: curl -fsSL https://gitee.com/gxuud/kimi-cli/raw/custom/main/scripts/install-gitee.sh | bash
 
 set -e
 
-REPO_URL="https://gitee.com/YOUR_USERNAME/kimi-cli.git"
+REPO_URL="https://gitee.com/gxuud/kimi-cli.git"
 BRANCH="custom/main"
 INSTALL_DIR="${HOME}/.local/share/kimi2-cli"
 BIN_DIR="${HOME}/.local/bin"
