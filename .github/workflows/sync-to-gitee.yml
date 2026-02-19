@@ -1,0 +1,42 @@
+name: Sync to Gitee
+
+on:
+  push:
+    branches: [ custom/main, main ]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitHub repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整历史
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Push to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_OWNER: ${{ github.repository_owner }}
+        run: |
+          # 添加 Gitee 远程仓库（使用 Token）
+          git remote add gitee https://oauth2:${GITEE_TOKEN}@gitee.com/${GITEE_OWNER}/kimi-cli.git || true
+          
+          # 获取所有分支
+          git fetch origin --all
+          
+          # 推送所有分支到 Gitee
+          echo "🚀 正在同步分支到 Gitee..."
+          git push gitee --all --force
+          
+          # 推送所有标签
+          echo "🏷️  正在同步标签到 Gitee..."
+          git push gitee --tags --force
+          
+          echo "✅ 同步完成！"
