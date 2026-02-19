@@ -48,7 +48,7 @@ OutputFormat = Literal["text", "stream-json"]
 
 def _version_callback(value: bool) -> None:
     if value:
-        typer.echo(f"kimi, version {VERSION}")
+        typer.echo(f"kimi2, version {VERSION}")
         raise typer.Exit()
 
 
