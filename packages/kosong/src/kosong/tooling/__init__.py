@@ -18,6 +18,8 @@ type ParametersType = dict[str, Any]
 class Tool(BaseModel):
     """The definition of a tool that can be recognized by the model."""
 
+    model_config = {"arbitrary_types_allowed": True}
+
     name: str
     """The name of the tool."""
 
@@ -98,6 +100,8 @@ class DisplayBlock(BaseModel, ABC):
 class UnknownDisplayBlock(DisplayBlock):
     """Fallback display block for unknown types."""
 
+    model_config = {"arbitrary_types_allowed": True}
+
     type: str = "unknown"
     data: JsonType
 
@@ -111,6 +115,8 @@ class BriefDisplayBlock(DisplayBlock):
 
 class ToolReturnValue(BaseModel):
     """The return type of a callable tool."""
+
+    model_config = {"arbitrary_types_allowed": True}
 
     is_error: bool
     """Whether the tool call resulted in an error."""
@@ -318,6 +324,8 @@ class CallableTool2[Params: BaseModel](ABC):
 
 class ToolResult(BaseModel):
     """The result of a tool call."""
+
+    model_config = {"arbitrary_types_allowed": True}
 
     tool_call_id: str
     """The ID of the tool call."""

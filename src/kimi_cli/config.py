@@ -34,6 +34,8 @@ class OAuthRef(BaseModel):
 class LLMProvider(BaseModel):
     """LLM provider configuration."""
 
+    model_config = {"arbitrary_types_allowed": True}
+
     type: ProviderType
     """Provider type"""
     base_url: str
@@ -54,6 +56,8 @@ class LLMProvider(BaseModel):
 
 class LLMModel(BaseModel):
     """LLM model configuration."""
+
+    model_config = {"arbitrary_types_allowed": True}
 
     provider: str
     """Provider name"""

@@ -182,6 +182,8 @@ class ToolCall(BaseModel, MergeableMixin):
     {'type': 'function', 'id': '123', 'function': {'name': 'function', 'arguments': '{}'}}
     """
 
+    model_config = {"arbitrary_types_allowed": True}
+
     class FunctionBody(BaseModel):
         """Tool call function body."""
 
@@ -242,6 +244,8 @@ type Role = Literal[
 
 class Message(BaseModel):
     """A message in a conversation."""
+
+    model_config = {"arbitrary_types_allowed": True}
 
     role: Role
     """The role of the message sender."""
