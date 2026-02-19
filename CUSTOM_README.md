@@ -14,7 +14,32 @@
 
 ## 🚀 安装方法
 
-### 方式一：从源码安装（推荐开发者）
+### 方式一：一键安装（推荐，最简单）
+
+像官方一样，只需一行命令：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/kimi-cli/custom/main/scripts/install.sh | bash
+```
+
+安装完成后，重启终端或运行 `source ~/.bashrc`（或 `~/.zshrc`），然后就可以使用 `kimi2` 命令了。
+
+### 方式二：使用 uv tool 安装（适合已有 uv 的用户）
+
+```bash
+# 1. 安装 uv（如果还没有）
+curl -LsSf https://astral.sh/uv/install.sh | bash
+
+# 2. 直接从 GitHub 安装 kimi2
+uv tool install git+https://github.com/YOUR_USERNAME/kimi-cli.git@custom/main --python 3.12
+```
+
+**更新：**
+```bash
+uv tool upgrade kimi2-cli
+```
+
+### 方式三：从源码安装（推荐开发者）
 
 ```bash
 # 1. 克隆仓库
@@ -26,12 +51,6 @@ uv sync --frozen
 
 # 3. 创建命令链接
 ln -sf "$(pwd)/.venv/bin/kimi2" ~/.local/bin/kimi2
-```
-
-### 方式二：使用 pip 安装（如果发布到 PyPI）
-
-```bash
-pip install kimi2-cli
 ```
 
 ## 📝 使用方法
@@ -78,7 +97,20 @@ to = "receiver@example.com"
 
 ## 🔄 更新代码
 
-### 更新定制版（保留你的修改）
+### 对于用户（一键安装方式）
+
+```bash
+# 进入安装目录
+cd ~/.local/share/kimi2-cli
+
+# 拉取最新代码
+git pull origin custom/main
+
+# 重新安装依赖
+uv sync --frozen
+```
+
+### 对于开发者（源码安装方式）
 
 ```bash
 # 1. 拉取官方最新代码
