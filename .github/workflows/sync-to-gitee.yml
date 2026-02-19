@@ -23,10 +23,10 @@ jobs:
       - name: Push to Gitee
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-          GITEE_OWNER: ${{ github.repository_owner }}
         run: |
           # 添加 Gitee 远程仓库（使用 Token）
-          git remote add gitee https://oauth2:${GITEE_TOKEN}@gitee.com/${GITEE_OWNER}/kimi-cli.git || true
+          # 注意：Gitee 用户名可能与 GitHub 不同
+          git remote add gitee https://oauth2:${GITEE_TOKEN}@gitee.com/gxuud/kimi-cli.git || true
           
           # 获取所有分支
           git fetch origin --all
