@@ -16,7 +16,13 @@
 
 ### 方式一：一键安装（推荐，最简单）
 
-像官方一样，只需一行命令：
+#### 国内用户（Gitee - 速度更快）
+
+```bash
+curl -fsSL https://gitee.com/YOUR_USERNAME/kimi-cli/raw/custom/main/scripts/install-gitee.sh | bash
+```
+
+#### 国外用户（GitHub）
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/kimi-cli/custom/main/scripts/install.sh | bash
