@@ -91,7 +91,11 @@ install_or_update
 
 # 创建虚拟环境并安装
 echo "🔧 正在安装依赖（这可能需要几分钟）..."
-uv sync --frozen
+if [ -f "uv.lock" ]; then
+    uv sync --frozen
+else
+    uv sync
+fi
 
 # 确保 bin 目录存在
 mkdir -p "${BIN_DIR}"
