@@ -1,0 +1,194 @@
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e1f5fe', 'primaryTextColor': '#01579b', 'primaryBorderColor': '#0288d1', 'lineColor': '#0288d1', 'secondaryColor': '#fff3e0', 'tertiaryColor': '#e8f5e9'}}}%%
+
+graph TB
+    subgraph UI["UI Layer"]
+        S[Shell TUI]
+        P[Print Mode]
+        A[ACP Server]
+    end
+
+    subgraph Wire["Wire (Event Bus)"]
+        W[WireChannel]
+    end
+
+    subgraph Soul["KimiSoul (Core Loop)"]
+        direction TB
+        
+        subgraph Runtime["Runtime Environment"]
+            CFG[Config]
+            SES[Session]
+            LLM[LLM Provider]
+            SKILLS[Skills]
+        end
+        
+        subgraph Memory["Memory System"]
+            CTX[Context<br/>_history: list[Message]]
+            FILE[context.jsonl<br/>Persistent Storage]
+            CP[Checkpoint System<br/>checkpoint_id]
+            REV[Revert/Replay]
+            COMP[SimpleCompaction<br/>max_preserve=2]
+        end
+        
+        subgraph Tools["Tool System"]
+            TS[KimiToolset]
+            BUILTIN[Built-in Tools]
+            MCP[MCP Tools]
+        end
+        
+        subgraph DMail["D-Mail System"]
+            DR[DenwaRenji<br/>Time Travel]
+        end
+        
+        subgraph Loop["Agent Loop"]
+            STEP1[1. Check Compaction]
+            STEP2[2. Create Checkpoint]
+            STEP3[3. kosong.step<br/>LLM Call]
+            STEP4[4. Execute Tools]
+            STEP5[5. Handle D-Mail?]
+            STEP6[6. Check Stop]
+        end
+    end
+
+    subgraph External["External"]
+        LLM_API[LLM APIs]
+        MCP_SRV[MCP Servers]
+    end
+
+    UI --> W
+    W --> Soul
+    
+    CTX <---> FILE
+    CTX --> CP
+    CP --> REV
+    REV --> DR
+    
+    CTX --> COMP
+    COMP --> CTX
+    
+    TS --> BUILTIN
+    TS --> MCP
+    MCP --> MCP_SRV
+    
+    LLM --> LLM_API
+    
+    STEP3 --> LLM
+    STEP4 --> TS
+    STEP5 --> DR
+    
+    style UI fill:#e3f2fd
+    style Soul fill:#fff8e1
+    style Memory fill:#e8f5e9
+    style Tools fill:#fce4ec
+    style DMail fill:#f3e5f5
+```
+
+---
+
+```mermaid
+%%{init: {'theme': 'base'}}%%
+graph LR
+    subgraph ToolFlow["Tool Call Flow"]
+        A[LLM Response<br/>with tool_calls] --> B[KimiToolset.handle]
+        B --> C{Tool Exists?}
+        C -->|Yes| D[Parse Arguments<br/>json.loads]
+        C -->|No| E[ToolNotFoundError]
+        D --> F[Execute __call__]
+        F --> G[Return ToolResult]
+    end
+    
+    style ToolFlow fill:#fff3e0
+```
+
+---
+
+```mermaid
+%%{init: {'theme': 'base'}}%%
+graph TB
+    subgraph ContextFlow["Context/Checkpoint Flow"]
+        START[Start Turn] --> CHK[Create Checkpoint]
+        CHK --> STEP[Run Step]
+        STEP --> DMAIL{D-Mail?}
+        DMAIL -->|Yes| REVERT[Revert to Checkpoint]
+        DMAIL -->|No| NEXT{Continue?}
+        REVERT --> INJECT[Inject D-Mail Message]
+        INJECT --> CHK
+        NEXT -->|Yes| CHK
+        NEXT -->|No| END[End Turn]
+    end
+    
+    style ContextFlow fill:#e8f5e9
+```
+
+---
+
+```mermaid
+%%{init: {'theme': 'base'}}%%
+graph LR
+    subgraph CompactionFlow["Compaction Flow"]
+        CHECK{Token Count<br/>> Threshold?} -->|Yes| PREP[Prepare Messages]
+        CHECK -->|No| SKIP[Skip]
+        PREP --> SPLIT[Split: to_compact +<br/>to_preserve]
+        SPLIT --> LLM_SUMM[LLM Summarize<br/>to_compact]
+        LLM_SUMM --> MERGE[Merge: Summary +<br/>Preserved Messages]
+        MERGE --> REPLACE[Replace Context]
+    end
+    
+    style CompactionFlow fill:#fce4ec
+```
+
+---
+
+```mermaid
+%%{init: {'theme': 'base'}}%%
+classDiagram
+    class KimiToolset {
+        -_tool_dict: dict
+        -_hidden_tools: set
+        -_mcp_servers: dict
+        +add(tool)
+        +handle(tool_call)
+        +load_tools(paths, deps)
+        +load_mcp_tools(configs)
+    }
+    
+    class Context {
+        -_history: list[Message]
+        -_token_count: int
+        -_file_backend: Path
+        -_next_checkpoint_id: int
+        +restore()
+        +append_message(msg)
+        +checkpoint()
+        +revert_to(id)
+        +clear()
+    }
+    
+    class KimiSoul {
+        -_agent: Agent
+        -_context: Context
+        -_runtime: Runtime
+        -_compaction: Compaction
+        +run(user_input)
+        -_agent_loop()
+        -_step()
+    }
+    
+    class DenwaRenji {
+        -_pending_dmail: DMail
+        -_n_checkpoints: int
+        +send_dmail(dmail)
+        +fetch_pending_dmail()
+    }
+    
+    class SimpleCompaction {
+        -max_preserved_messages: int
+        +compact(messages, llm)
+        -prepare(messages)
+    }
+    
+    KimiSoul --> Context
+    KimiSoul --> KimiToolset
+    KimiSoul --> DenwaRenji
+    KimiSoul --> SimpleCompaction
+```
